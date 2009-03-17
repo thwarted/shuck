@@ -1,0 +1,32 @@
+shuck is a wrapper around the commands run by cron that throws away output
+less the command appears to fail.  It only generates output if the job
+output on stderr, or exited a non-zero status.
+
+Usage:
+    shuck "<cmd>"
+    shuck -c "<cmd>"
+    shuck <cmd> <arg> ...
+
+The -c option is optional and exists for transparent compatibility with shell
+invocation.  If <cmd> contains shell meta-characters, it should be quoted.
+
+For simple, commands with no shell metacharacters, you can just prefix the
+command line in the crontab file with the path to shuck:
+
+    * * * * * /usr/local/bin/shuck /some/command argument1 2 3
+
+Often times you'll have a series of commands in a single crontab entry, 
+separated by semicolons.  In this case, either quote the entire command and 
+prefix it with the path to shuck:
+
+    * * * * * /usr/local/bin/shuck 'uptime ; ps auxwf'
+
+or set the SHELL environment variable at the top of the crontab as the path
+to shuck, and everything will be run through shuck:
+
+    SHELL=/usr/local/bin/shuck
+    * * * * * uptime ; ps
+
+Quoting the command in this last case isn't necessary because cron passes the
+the entire command string to shuck as a single argument.
+

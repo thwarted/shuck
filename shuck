@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# TODO
+#   we should accept options in the SHUCK environment variable
+#   possible option: send email ourselves
+#   possible option: set a reasonable job name, don't just use the commandline
+#   try to extract the job period/frequency fron crontab
+#   include environment settings
+#   need to trap signals and cleanup
+# 
+
+# grab the path set by the parent shell
+REQUESTEDPATH=$PATH
+
+# set our own path to avoid security issues
+SHUCKPATH=/bin:/usr/bin
+PATH=$SHUCKPATH
+export PATH
+
+# were we invoked like /bin/sh is?
+# cron should invoke us with -c "<cmd>"
+RUNTHROUGHSH=0
+if [ "$#" -eq 2 -a "$1" = '-c' ]; then
+    RUNTHROUGHSH=1
+    CMD="$2"
+elif [ "$#" -eq 1 ]; then
+    RUNTHROUGHSH=1
+    CMD="$1"
+else
+    CMD="$@"
+fi
+
+# create a private directry to store our output
+WORKDIR=`mktemp -d /tmp/xshuck.XXXXXXXXXX`
+
+STDOUT=$WORKDIR/shuck.stdout.$$
+STDERR=$WORKDIR/shuck.stderr.$$
+XTRACE=$WORKDIR/shuck.trace.$$
+
+# generate a unique prefix for tracing
+XTRACEPREFIX="+$WORKDIR: "
+if [ "$RUNTHROUGHSH" = 1 ]; then
+    PATH=$REQUESTEDPATH
+    export PATH
+    /bin/bash -c "PS4='$XTRACEPREFIX' ; set -x ; $CMD" >$STDOUT 2>$XTRACE.tmp
+    RESULT=$?
+else
+    PATH=$REQUESTEDPATH
+    export PATH
+    (
+        PS4="$XTRACEPREFIX"
+        set -x
+        "$@"
+    ) >$STDOUT 2>$XTRACE.tmp
+    RESULT=$?
+fi
+PATH=$SHUCKPATH
+export PATH
+
+# build a pattern that matches the PS4 we set, including nested subshells
+TRACEPATTERN="^${XTRACEPREFIX:0:1}\\+${XTRACEPREFIX:1}"
+
+# was there stderr output, distinct from our tracing lines?
+grep -v "$TRACEPATTERN" $XTRACE.tmp > $STDERR
+
+# build a nice status message
+FAIL1=""
+FAIL2=""
+if [ $RESULT -ne 0 ]; then
+    FAIL1="failure"
+fi
+if [ -s "$STDERR" ]; then
+    FAIL2="error output"
+fi
+if [ -n "$FAIL1" -a -n "$FAIL2" ]; then
+    FAIL="$FAIL1 and $FAIL2"
+else
+    FAIL="${FAIL1}${FAIL2}"
+fi
+
+# generate report
+if [ -n "$FAIL" ]; then
+    echo "shuck detected $FAIL for the command:"
+    echo "$CMD"
+    echo
+    echo "exit code: $RESULT"
+    if [ -s "$STDERR" ]; then
+        echo
+        echo "---------------------- stderr ----------------------"
+        cat "$STDERR"
+    fi
+    echo
+    echo "---------------------- stdout ----------------------"
+    cat "$STDOUT"
+    if [ "$XTRACE" != "$STDERR" ]; then
+        echo
+        echo "---------------------- trace ----------------------"
+        # remove our xtrace prefix
+        cat $XTRACE.tmp | 
+            grep -v "${TRACEPATTERN}RESULT=" | 
+            grep -v "${TRACEPATTERN}set +x" | 
+            sed -e 's_^\(+\+\)'$WORKDIR':_\1_;'
+        echo
+    fi
+fi
+
+rm -f $STDOUT $STDERR $XTRACE $XTRACE.tmp
+rmdir $WORKDIR
+
+
