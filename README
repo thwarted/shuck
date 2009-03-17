@@ -1,6 +1,6 @@
 shuck is a wrapper around the commands run by cron that throws away output
 less the command appears to fail.  It only generates output if the job
-output on stderr, or exited a non-zero status.
+generates output on stderr or exited a non-zero status.
 
 Usage:
     shuck "<cmd>"
