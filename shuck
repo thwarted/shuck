@@ -15,14 +15,6 @@ SHUCKVER="1.1"
 # See the License for the specific language governing permissions and 
 # limitations under the License. 
 
-# TODO
-#   possible option: send email ourselves
-#   possible option: set a reasonable job name, don't just use the commandline
-#   try to extract the job period/frequency fron crontab
-#   need to trap signals and cleanup
-#   check to see if we can find the various unix utilities we need and if not
-#     then issue a warning, and run the command directly in passthrough
-
 usage() {
     cat >&2 <<EOF
 shuck version $SHUCKVER
