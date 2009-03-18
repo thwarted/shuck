@@ -1,16 +1,62 @@
 #!/bin/bash
 
+SHUCKVER="1.1"
+# shuck version 1.1
+# http://github.com/thwarted/shuck/
+
+# Copyright 2009 Andrew Bakun
+# Licensed under the Apache License, Version 2.0 (the "License"); 
+# you may not use this file except in compliance with the License. 
+# You may obtain a copy of the License at
+#    http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, 
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+# See the License for the specific language governing permissions and 
+# limitations under the License. 
+
 # TODO
-#   we should accept options in the SHUCK environment variable
 #   possible option: send email ourselves
 #   possible option: set a reasonable job name, don't just use the commandline
 #   try to extract the job period/frequency fron crontab
-#   include environment settings
 #   need to trap signals and cleanup
-# 
+#   check to see if we can find the various unix utilities we need and if not
+#     then issue a warning, and run the command directly in passthrough
+
+usage() {
+    cat >&2 <<EOF
+shuck version $SHUCKVER
+shuck output unless the job appears to fail
+
+Usage:
+    $0 -h | --help
+    $0 "<cmd>"
+    $0 -c "<cmd>"
+    $0 <cmd> <arg> ...
+
+Run <cmd>.  Ignore any output unless it exits with a non-zero exit status or 
+produces output on stderr.
+
+Insert the following at the top of your crontab(5) to only be emailed output 
+from failed commands:
+SHELL=/full/path/to/shuck
+
+Set the envirvonment variable SHUCKOPTS to a colon separated list of the 
+following options to change the behavior:
+    env     include a list of the environment in the output
+EOF
+}
+
+if [ "$1" = '-h' -o "$1" = '--help' ]; then
+    usage
+    exit 0
+fi
 
 # grab the path set by the parent shell
 REQUESTEDPATH=$PATH
+
+opt_includeenv="${SHUCKOPTS/*env*/1}"
+opt_sendemail="${SHUCKOPTS/*email*/1}" # unimplemented
 
 # set our own path to avoid security issues
 SHUCKPATH=/bin:/usr/bin
@@ -30,24 +76,31 @@ else
     CMD="$@"
 fi
 
+if [ -z "$CMD" ]; then
+    # short circuit if there is no command to run
+    exit 0
+fi
+
 # create a private directry to store our output
 WORKDIR=`mktemp -d /tmp/xshuck.XXXXXXXXXX`
 
 STDOUT=$WORKDIR/shuck.stdout.$$
 STDERR=$WORKDIR/shuck.stderr.$$
 XTRACE=$WORKDIR/shuck.trace.$$
+ENVLIST=$WORKDIR/shuck.env.$$
 
 # generate a unique prefix for tracing
 XTRACEPREFIX="+$WORKDIR: "
 if [ "$RUNTHROUGHSH" = 1 ]; then
     PATH=$REQUESTEDPATH
     export PATH
-    /bin/bash -c "PS4='$XTRACEPREFIX' ; set -x ; $CMD" >$STDOUT 2>$XTRACE.tmp
+    /bin/bash -c "set > $ENVLIST ; PS4='$XTRACEPREFIX' ; set -x ; $CMD" >$STDOUT 2>$XTRACE.tmp
     RESULT=$?
 else
     PATH=$REQUESTEDPATH
     export PATH
     (
+        set > $ENVLIST
         PS4="$XTRACEPREFIX"
         set -x
         "$@"
@@ -102,9 +155,14 @@ if [ -n "$FAIL" ]; then
             sed -e 's_^\(+\+\)'$WORKDIR':_\1_;'
         echo
     fi
+    if [ "$opt_includeenv" = "1" ]; then
+        echo
+        echo "------------------ environment --------------------"
+        cat $ENVLIST
+    fi
 fi
 
-rm -f $STDOUT $STDERR $XTRACE $XTRACE.tmp
+rm -f $STDOUT $STDERR $XTRACE $XTRACE.tmp $ENVLIST
 rmdir $WORKDIR
 
 
