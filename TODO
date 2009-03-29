@@ -7,4 +7,6 @@ TODO
 - check to see if we can find the various unix utilities we need and if not
   then issue a warning, and run the command directly in passthrough
 
+IDEAS
+- update a google calendar with job start and end times (gcalcli)
 

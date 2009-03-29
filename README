@@ -1,5 +1,5 @@
 shuck is a wrapper around the commands run by cron that throws away output
-less the command appears to fail.  It only generates output if the job
+unless the command appears to fail.  It only generates output if the job
 generates output on stderr or exited a non-zero status.
 
 Usage:
@@ -10,7 +10,7 @@ Usage:
 The -c option is optional and exists for transparent compatibility with shell
 invocation.  If <cmd> contains shell meta-characters, it should be quoted.
 
-For simple, commands with no shell metacharacters, you can just prefix the
+For simple commands with no shell metacharacters, you can just prefix the
 command line in the crontab file with the path to shuck:
 
     * * * * * /usr/local/bin/shuck /some/command argument1 2 3
